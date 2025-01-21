@@ -167,6 +167,10 @@ pub struct Config {
     #[structopt(long)]
     pub no_round_corner: bool,
 
+    /// Set corner radius
+    #[structopt(long, default_value = "12")]
+    pub corner_radius: u8,
+
     /// Pad horiz
     #[structopt(long, value_name = "PAD", default_value = "80")]
     pub pad_horiz: u32,
@@ -282,6 +286,7 @@ impl Config {
             .line_number(!self.no_line_number)
             .font(self.font.clone().unwrap_or_default())
             .round_corner(!self.no_round_corner)
+            .corner_radius(self.corner_radius)
             .shadow_adder(self.get_shadow_adder()?)
             .tab_width(self.tab_width)
             .highlight_lines(self.highlight_lines.clone().unwrap_or_default())

@@ -5,6 +5,8 @@ use crate::utils::*;
 use image::{Rgba, RgbaImage};
 use syntect::highlighting::{Color, Style, Theme};
 
+const MAX_RADIUS_RECOMMENDATION: u8 = 26;
+
 pub struct ImageFormatter<T> {
     /// pad between lines
     /// Default: 2
@@ -37,6 +39,9 @@ pub struct ImageFormatter<T> {
     /// round corner
     /// Default: true
     round_corner: bool,
+    /// corner radius
+    /// Default: 12
+    corner_radius: u8,
     /// pad between code and line number
     /// Default: 6
     line_number_pad: u32,
@@ -74,6 +79,8 @@ pub struct ImageFormatterBuilder<S> {
     window_title: Option<String>,
     /// Whether round the corner of the image
     round_corner: bool,
+    /// Sets corner radius
+    corner_radius: u8,
     /// Shadow adder,
     shadow_adder: Option<ShadowAdder>,
     /// Tab width
@@ -144,6 +151,11 @@ impl<S: AsRef<str> + Default> ImageFormatterBuilder<S> {
         self
     }
 
+    pub fn corner_radius(mut self, r: u8) -> Self {
+        self.corner_radius = r;
+        self
+    }
+
     /// Add the shadow
     pub fn shadow_adder(mut self, adder: ShadowAdder) -> Self {
         self.shadow_adder = Some(adder);
@@ -186,6 +198,7 @@ impl<S: AsRef<str> + Default> ImageFormatterBuilder<S> {
             line_number_chars: 0,
             highlight_lines: self.highlight_lines,
             round_corner: self.round_corner,
+            corner_radius: self.corner_radius,
             shadow_adder: self.shadow_adder,
             tab_width: self.tab_width,
             font,
@@ -381,8 +394,14 @@ impl<T: TextLineDrawer> ImageFormatter<T> {
             add_window_controls(&mut image, &params);
         }
 
-        if self.round_corner {
-            round_corner(&mut image, 12);
+        if self.round_corner && self.corner_radius != 0 {
+            if self.corner_radius > MAX_RADIUS_RECOMMENDATION {
+                println!(
+                    "Warning: r = {} > {} (radius recommendation); Parts of the image may start to overlap!",
+                    self.corner_radius, MAX_RADIUS_RECOMMENDATION
+                );
+            }
+            round_corner(&mut image, self.corner_radius.into());
         }
 
         if let Some(adder) = &self.shadow_adder {
