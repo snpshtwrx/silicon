@@ -51,6 +51,8 @@ pub struct ImageFormatter<T> {
     font: T,
     /// Highlight lines
     highlight_lines: Vec<u32>,
+    /// Highlight col range in line
+    highlight_cols: Vec<(u32, u32, u32)>,
     /// Shadow adder
     shadow_adder: Option<ShadowAdder>,
     /// Tab width
@@ -71,6 +73,8 @@ pub struct ImageFormatterBuilder<S> {
     font: Vec<(S, f32)>,
     /// Highlight lines
     highlight_lines: Vec<u32>,
+    /// Highlight col range in line
+    highlight_cols: Vec<(u32, u32, u32)>,
     /// Whether show the window controls
     window_controls: bool,
     /// Window title
@@ -166,6 +170,11 @@ impl<S: AsRef<str> + Default> ImageFormatterBuilder<S> {
         self
     }
 
+    pub fn highlight_cols(mut self, cols: Vec<(u32, u32, u32)>) -> Self {
+        self.highlight_cols = cols;
+        self
+    }
+
     /// Set tab width
     pub fn tab_width(mut self, width: u8) -> Self {
         self.tab_width = width;
@@ -195,6 +204,7 @@ impl<S: AsRef<str> + Default> ImageFormatterBuilder<S> {
             line_number_pad: 6,
             line_number_chars: 0,
             highlight_lines: self.highlight_lines,
+            highlight_cols: self.highlight_cols,
             round_corner: self.round_corner,
             corner_radius: self.corner_radius,
             shadow_adder: self.shadow_adder,
@@ -220,9 +230,19 @@ impl<T: TextLineDrawer> ImageFormatter<T> {
         self.font.height(" ") + self.line_pad
     }
 
+    /// width of a single character
+    fn get_col_width(&mut self) -> u32 {
+        self.font.width(" ")
+    }
+
     /// calculate the Y coordinate of a line
     fn get_line_y(&mut self, lineno: u32) -> u32 {
         lineno * self.get_line_height() + self.code_pad + self.code_pad_top
+    }
+
+    /// calculate the X coordinate of a column
+    fn get_col_x(&mut self, col: u32) -> u32 {
+        col * self.get_col_width() + self.code_pad
     }
 
     /// calculate the size of code area
@@ -345,6 +365,38 @@ impl<T: TextLineDrawer> ImageFormatter<T> {
         }
     }
 
+    fn highlight_cols<I: IntoIterator<Item = (u32, u32, u32)>>(
+        &mut self,
+        image: &mut RgbaImage,
+        cols: I,
+        max_lineno_digit_count: u32,
+    ) {
+        let height = self.get_line_height();
+        let mut cloned = image.clone();
+        let color = cloned.get_pixel_mut(20, 20);
+
+        for i in color.0.iter_mut() {
+            *i = (*i).saturating_add(40);
+        }
+
+        for (y, x_start, x_end) in cols {
+            if x_start > x_end {
+                continue;
+            }
+            let x_start = self.get_col_x(x_start - 1);
+            let x_end = self.get_col_x(x_end - 1) + self.get_col_width();
+            let shadow = RgbaImage::from_pixel(x_end - x_start, height, *color);
+            let x = x_start
+                + if self.line_number {
+                    self.get_col_width() * max_lineno_digit_count + 12
+                } else {
+                    0
+                };
+            let y = self.get_line_y(y - 1);
+            copy_alpha(&shadow, image, x, y);
+        }
+    }
+
     // TODO: use &T instead of &mut T ?
     pub fn format(&mut self, v: &[Vec<(Style, &str)>], theme: &Theme) -> RgbaImage {
         if self.line_number {
@@ -373,6 +425,23 @@ impl<T: TextLineDrawer> ImageFormatter<T> {
                 .collect::<Vec<_>>();
             self.highlight_lines(&mut image, highlight_lines);
         }
+
+        if !self.highlight_cols.is_empty() {
+            let mut count = 1;
+            let mut max_lineno = drawables.max_lineno;
+            while max_lineno != 0 {
+                max_lineno /= 10;
+                count += 1;
+            }
+            let highlight_cols = self
+                .highlight_cols
+                .iter()
+                .cloned()
+                .filter(|&(y, _, _)| y >= 1 && y <= drawables.max_lineno + 1)
+                .collect::<Vec<_>>();
+            self.highlight_cols(&mut image, highlight_cols, count);
+        }
+
         if self.line_number {
             self.draw_line_number(&mut image, drawables.max_lineno, foreground.to_rgba());
         }
