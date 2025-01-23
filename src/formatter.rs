@@ -5,8 +5,6 @@ use crate::utils::*;
 use image::{Rgba, RgbaImage};
 use syntect::highlighting::{Color, Style, Theme};
 
-const MAX_RADIUS_RECOMMENDATION: u8 = 26;
-
 pub struct ImageFormatter<T> {
     /// pad between lines
     /// Default: 2
@@ -395,10 +393,10 @@ impl<T: TextLineDrawer> ImageFormatter<T> {
         }
 
         if self.round_corner && self.corner_radius != 0 {
-            if self.corner_radius > MAX_RADIUS_RECOMMENDATION {
+            if u32::from(self.corner_radius) > self.code_pad {
                 println!(
-                    "Warning: r = {} > {} (radius recommendation); Parts of the image may start to overlap!",
-                    self.corner_radius, MAX_RADIUS_RECOMMENDATION
+                    "Warning: r = {} > {} (code pad); Parts of the image may start to overlap!",
+                    self.corner_radius, self.code_pad
                 );
             }
             round_corner(&mut image, self.corner_radius.into());
